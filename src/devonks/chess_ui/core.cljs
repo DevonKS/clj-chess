@@ -26,6 +26,33 @@
             "8" 0)]
     [x y]))
 
+(defn coords->square
+  [[x y]]
+  (let [file (case x
+               0 "a"
+               100 "b"
+               200 "c"
+               300 "d"
+               400 "e"
+               500 "f"
+               600 "g"
+               700 "h")
+        rank (case y
+               700 "1"
+               600 "2"
+               500 "3"
+               400 "4"
+               300 "5"
+               200 "6"
+               100 "7"
+               0 "8")]
+    (str file rank)))
+
+(defn normalise-coords
+  [[x y]]
+  [(* 100 (Math/floor (/ x 100)))
+   (* 100 (Math/floor (/ y 100)))])
+
 (defn piece-comp [piece [x y]]
   [:image {:x x
            :y y
@@ -36,6 +63,8 @@
 
 (def drag-state (atom {:svg-element nil
                        :drag-target nil
+                       :square-svg-element nil
+                       :original-square-class nil
                        :offset nil}))
 
 (defn init-drag-piece
@@ -55,14 +84,20 @@
   [e state]
   (if (.. e -target -attributes -draggable)
     (let [target (.-target e)
-          [x y] (get-svg-coordinates e (:svg-element state))
+          [x y :as svg-coords] (get-svg-coordinates e (:svg-element state))
+          coords (normalise-coords svg-coords)
+          square-svg-element (.getElementById js/document (coords->square coords))
+          original-square-class (.getAttribute square-svg-element "class")
           offset-x (- x (js/parseFloat (.getAttributeNS target nil "x")))
           offset-y (- y (js/parseFloat (.getAttributeNS target nil "y")))
           offset-vec [offset-x offset-y]]
       (.preventDefault e)
+      (.setAttribute square-svg-element "class" "original-square")
       (assoc state
              :drag-target target
-             :offset offset-vec))
+             :offset offset-vec
+             :square-svg-element square-svg-element
+             :original-square-class original-square-class))
     state))
 
 (defn drag-piece
@@ -83,13 +118,17 @@
   [e state]
   (if (:drag-target state)
     (let [drag-target (:drag-target state)
-          [x y] (get-svg-coordinates e (:svg-element state))
-          new-x (* 100 (Math/floor (/ x 100)))
-          new-y (* 100 (Math/floor (/ y 100)))]
+          svg-coords (get-svg-coordinates e (:svg-element state))
+          [new-x new-y] (normalise-coords svg-coords)]
       (.preventDefault e)
       (.setAttributeNS drag-target nil "x" new-x)
       (.setAttributeNS drag-target nil "y" new-y)
-      (assoc state :drag-target nil))
+      (.setAttribute (:square-svg-element state) "class" (:original-square-class state))
+      (assoc state
+             :drag-target nil
+             :square-svg-element nil
+             :original-square-class nil
+             :offset nil))
     state))
 
 (defn handle-drag-event!
@@ -99,9 +138,9 @@
     (reset! drag-state new-state)))
 
 ;; TODO
-;; Validate that piece is moved to a legal square
 ;; DONE - Refactor drag event code to be more functional and use clojure data structures where ever possible
-;; Highlight original square when moving piece
+;; DONE - Highlight original square when moving piece
+;; Validate that piece is moved to a legal square
 ;; Draw dots on legal squares when moving a piece
 ;; allow for highlighting squares
 ;; allow for drawing arrows
@@ -118,24 +157,29 @@
                (fn [i]
                  (let [row (Math/floor (/ i 8))
                        column (rem i 8)
-                       fill (cond
-                              (or (and (zero? (mod column 2))
-                                       (zero? (mod row 2)))
-                                  (and (not (zero? (mod column 2)))
-                                       (not (zero? (mod row 2)))))
-                              "#d8dee9"
+                       class (cond
+                               (or (and (zero? (mod column 2))
+                                        (zero? (mod row 2)))
+                                   (and (not (zero? (mod column 2)))
+                                        (not (zero? (mod row 2)))))
+                               "square-light"
 
-                              (or (and (not (zero? (mod column 2)))
-                                       (zero? (mod row 2)))
-                                  (and (zero? (mod column 2))
-                                       (not (zero? (mod row 2)))))
-                              "#5e81ac")]
+                               (or (and (not (zero? (mod column 2)))
+                                        (zero? (mod row 2)))
+                                   (and (zero? (mod column 2))
+                                        (not (zero? (mod row 2)))))
+                               "square-dark")
 
+                       x (* 100 column)
+                       y (* 100 row)
+                       coords [x y]
+                       square (coords->square coords)]
                    [:rect {:width "100"
                            :height "100"
-                           :x (* 100 column)
-                           :y (* 100 row)
-                           :style {:fill fill}}]))
+                           :x x
+                           :y y
+                           :id square
+                           :class class}]))
                (range 64))
         rank-coordinates (mapv
                           (fn [i]

@@ -17,3 +17,15 @@ text.coordinate-light {
 	fill: #d8dee9;
         font-family: Arial Black,sans-serif;
 }
+
+rect.square-dark {
+	fill: #5e81ac;
+}
+
+rect.square-light {
+	fill: #d8dee9;
+}
+
+rect.original-square {
+	fill: #ebcb8b;
+}
