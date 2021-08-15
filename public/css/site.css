@@ -29,3 +29,19 @@ rect.square-light {
 rect.original-square {
 	fill: #ebcb8b;
 }
+
+rect.default-highlight {
+	fill: #bf616a;
+}
+
+rect.highlight-1 {
+	fill: #a3be8c;
+}
+
+rect.highlight-2 {
+	fill: #b48ead;
+}
+
+rect.highlight-3 {
+	fill: #d08770;
+}

@@ -65,7 +65,8 @@
                        :drag-target nil
                        :square-svg-element nil
                        :original-square-class nil
-                       :offset nil}))
+                       :offset nil
+                       :highlighted-squares []}))
 
 (defn init-drag-piece
   [e state]
@@ -80,9 +81,26 @@
                  (.-d ctm))]
     [svg-x svg-y]))
 
+(defn- unhighlight-squares
+  [highlighted-squares]
+  (doseq [[elem c] highlighted-squares]
+    (.setAttribute elem "class" c)))
+
+(defn- highlight-square
+  [state e c]
+  (let [svg-coords (get-svg-coordinates e (:svg-element state))
+        coords (normalise-coords svg-coords)
+        square-svg-element (.getElementById js/document (coords->square coords))
+        original-square-class (.getAttribute square-svg-element "class")]
+    (.preventDefault e)
+    (.setAttribute square-svg-element "class" c)
+    (update state :highlighted-squares conj [square-svg-element original-square-class])))
+
 (defn grab-piece
   [e state]
-  (if (.. e -target -attributes -draggable)
+  (cond
+    (and (= (.-button e) 0)
+         (.. e -target -attributes -draggable))
     (let [target (.-target e)
           [x y :as svg-coords] (get-svg-coordinates e (:svg-element state))
           coords (normalise-coords svg-coords)
@@ -93,11 +111,49 @@
           offset-vec [offset-x offset-y]]
       (.preventDefault e)
       (.setAttribute square-svg-element "class" "original-square")
+      (unhighlight-squares (:highlighted-squares state))
       (assoc state
              :drag-target target
              :offset offset-vec
              :square-svg-element square-svg-element
-             :original-square-class original-square-class))
+             :original-square-class original-square-class
+             :highlighted-squares []))
+
+    (and (= (.-button e) 0)
+         (not (.. e -target -attributes -draggable)))
+    (do (unhighlight-squares (:highlighted-squares state))
+        (assoc state :highlighted-squares []))
+
+;; FIXME Need to handle the case when the square is already highlighted
+    (and (= (.-button e) 2)
+         (not (or (.-altKey e)
+                  (.-ctrlKey e)
+                  (.-shiftKey e))))
+    (highlight-square state e "default-highlight")
+
+    (and (= (.-button e) 2)
+         (.-ctrlKey e)
+         (not (or (.-altKey e)
+                  (.-shiftKey e))))
+    (highlight-square state e "highlight-1")
+
+    (and (= (.-button e) 2)
+         (.-altKey e)
+         (not (or (.-ctrlKey e)
+                  (.-shiftKey e))))
+    (highlight-square state e "highlight-2")
+
+    (and (= (.-button e) 2)
+         (.-shiftKey e)
+         (not (or (.-ctrlKey e)
+                  (.-altKey e))))
+    (highlight-square state e "highlight-3")
+
+    (= (.-button e) 2)
+    (do (.preventDefault e)
+        state)
+
+    :else
     state))
 
 (defn drag-piece
@@ -116,7 +172,9 @@
 
 (defn drop-piece
   [e state]
-  (if (:drag-target state)
+  (cond
+    (and (= (.-button e) 0)
+         (:drag-target state))
     (let [drag-target (:drag-target state)
           svg-coords (get-svg-coordinates e (:svg-element state))
           [new-x new-y] (normalise-coords svg-coords)]
@@ -129,6 +187,12 @@
              :square-svg-element nil
              :original-square-class nil
              :offset nil))
+
+    (= (.-button e) 2)
+    (do (.preventDefault e)
+        state)
+
+    :else
     state))
 
 (defn handle-drag-event!
@@ -152,7 +216,8 @@
                    :onLoad (partial handle-drag-event! init-drag-piece)
                    :onMouseDown (partial handle-drag-event! grab-piece)
                    :onMouseMove (partial handle-drag-event! drag-piece)
-                   :onMouseUp (partial handle-drag-event! drop-piece)}]
+                   :onMouseUp (partial handle-drag-event! drop-piece)
+                   :onContextMenu #(.preventDefault %)}]
         board (map
                (fn [i]
                  (let [row (Math/floor (/ i 8))
@@ -234,7 +299,6 @@
 
 ;; -------------------------
 ;; Initialize app
-
 
 (defn mount-root []
   (d/render [home-page] (.getElementById js/document "app")))
