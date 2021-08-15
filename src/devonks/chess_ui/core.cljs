@@ -34,88 +34,86 @@
            :draggable true
            :href (str "img/" piece ".svg")}])
 
-(def drag-state (atom {:svg-document nil
-                       :svg-root nil
-                       :true-coords nil
-                       :grab-point nil
-                       :back-drop nil
-                       :drag-target nil}))
+(def drag-state (atom {:svg-element nil
+                       :drag-target nil
+                       :offset nil}))
 
-(defn get-true-coords! [e]
-  (let [{:keys [svg-root true-coords]} @drag-state
-        new-scale (.-currentScale svg-root)
-        translation (.-currentTranslate svg-root)]
-    (set! (.-x true-coords) (/ (- (.-clientX e) (.-x translation))
-                               new-scale))
-    (set! (.-y true-coords) (/ (- (.-clientY e) (.-y translation))
-                               new-scale))))
+(defn init-drag-piece
+  [e state]
+  (assoc state :svg-element (.-target e)))
 
-(defn init-drag-piece! [e]
-  (swap! drag-state assoc :svg-document (.. e -target -ownerDocument))
+(defn- get-svg-coordinates
+  [e svg]
+  (let [ctm (.getScreenCTM ^SVGGraphicsElement svg)
+        svg-x (/ (- (.-clientX e) (.-e ctm))
+                 (.-a ctm))
+        svg-y (/ (- (.-clientY e) (.-f ctm))
+                 (.-d ctm))]
+    [svg-x svg-y]))
 
-  ;; FIXME this statement causes a type inference warning. fix it.
-  (swap! drag-state assoc :svg-root (.. e -target -ownerSVGElement))
+(defn grab-piece
+  [e state]
+  (if (.. e -target -attributes -draggable)
+    (let [target (.-target e)
+          [x y] (get-svg-coordinates e (:svg-element state))
+          offset-x (- x (js/parseFloat (.getAttributeNS target nil "x")))
+          offset-y (- y (js/parseFloat (.getAttributeNS target nil "y")))
+          offset-vec [offset-x offset-y]]
+      (.preventDefault e)
+      (assoc state
+             :drag-target target
+             :offset offset-vec))
+    state))
 
-  (swap! drag-state assoc :true-coords (.createSVGPoint (get @drag-state :svg-root)))
-  (swap! drag-state assoc :grab-point (.createSVGPoint (get @drag-state :svg-root)))
-  (swap! drag-state assoc :back-drop (.getElementById (get @drag-state :svg-document) "BackDrop")))
+(defn drag-piece
+  [e state]
+  (if (:drag-target state)
+    (let [drag-target (:drag-target state)
+          [coord-x coord-y] (get-svg-coordinates e (:svg-element state))
+          [offset-x offset-y] (:offset state)
+          new-x (- coord-x offset-x)
+          new-y (- coord-y offset-y)]
+      (.preventDefault e)
+      (.setAttributeNS drag-target nil "x" new-x)
+      (.setAttributeNS drag-target nil "y" new-y)
+      state)
+    state))
 
-(defn grab-piece! [e]
-  (let [target-element (.-target e)
-        draggable (.. target-element -attributes -draggable)]
-    (when (and (not (= target-element (get @drag-state :back-drop)))
-               draggable)
-      (let [drag-target target-element
-            trans-matrix (.getCTM ^EventTarget drag-target)
-            {:keys [grab-point true-coords]} @drag-state]
-        (swap! drag-state assoc :drag-target drag-target)
-        (.appendChild (.-parentNode drag-target) drag-target)
-        (.setAttributeNS drag-target nil, "pointer-events", "none")
-        (set! (.-x grab-point) (- (.-x true-coords) (js/Number (.-e trans-matrix))))
-        (set! (.-y grab-point) (- (.-y true-coords) (js/Number (.-f trans-matrix))))))))
+(defn drop-piece
+  [e state]
+  (if (:drag-target state)
+    (let [drag-target (:drag-target state)
+          [x y] (get-svg-coordinates e (:svg-element state))
+          new-x (* 100 (Math/floor (/ x 100)))
+          new-y (* 100 (Math/floor (/ y 100)))]
+      (.preventDefault e)
+      (.setAttributeNS drag-target nil "x" new-x)
+      (.setAttributeNS drag-target nil "y" new-y)
+      (assoc state :drag-target nil))
+    state))
 
-(defn drag-piece! [e]
-  (get-true-coords! e)
-  (let [drag-target (get @drag-state :drag-target)]
-    (when drag-target
-      (let [{:keys [true-coords grab-point]} @drag-state
-            new-x (- (.-x true-coords) (.-x grab-point))
-            new-y (- (.-y true-coords) (.-y grab-point))]
-        (.setAttributeNS drag-target nil "transform" (str "translate(" new-x "," new-y ")"))))))
-
-;; FIXME Snap back to starting spot if target is an image or the move is invalid
-(defn drop-piece! [e]
-  (let [drag-target (get @drag-state :drag-target)]
-    (when drag-target
-      (get-true-coords! e)
-      (let [target-element (.-target e)
-            new-x (.. target-element -attributes -x -value)
-            new-y (.. target-element -attributes -y -value)]
-        (.setAttribute drag-target "x" new-x)
-        (.setAttribute drag-target "y" new-y)
-        (.setAttributeNS drag-target nil "transform" "")
-        (.setAttributeNS drag-target nil "pointer-events" "all")
-        (if (= (.. target-element -parentNode -id) "folder")
-          (do (.appendChild (.-parentNode target-element) drag-target)
-              (js/alert (str (.-id drag-target) " has been dropped into a folder, and has been inserted as a child of the containing group.")))
-          (js/alert (str (.-id drag-target) " has been dropped on top of " (.-id target-element))))
-        (swap! drag-state assoc :drag-target nil)))))
+(defn handle-drag-event!
+  [event-fn e]
+  (let [state @drag-state
+        new-state (event-fn e state)]
+    (reset! drag-state new-state)))
 
 ;; TODO
 ;; Validate that piece is moved to a legal square
-;; Refactor drag event code to be more functional and use clojure data structures where ever possible
+;; DONE - Refactor drag event code to be more functional and use clojure data structures where ever possible
 ;; Highlight original square when moving piece
 ;; Draw dots on legal squares when moving a piece
 ;; allow for highlighting squares
 ;; allow for drawing arrows
 ;; allow for moving piece by clicking instead of dragging
 (defn chess-board [pieces]
-  (let [svg [:svg {:style {:width "800px"
-                           :height "800px"}
-                   :onLoad init-drag-piece!
-                   :onMouseDown grab-piece!
-                   :onMouseMove drag-piece!
-                   :onMouseUp drop-piece!}]
+  (let [svg [:svg {:width "800"
+                   :height "800"
+                   :viewport "0 0 800 800"
+                   :onLoad (partial handle-drag-event! init-drag-piece)
+                   :onMouseDown (partial handle-drag-event! grab-piece)
+                   :onMouseMove (partial handle-drag-event! drag-piece)
+                   :onMouseUp (partial handle-drag-event! drop-piece)}]
         board (map
                (fn [i]
                  (let [row (Math/floor (/ i 8))
