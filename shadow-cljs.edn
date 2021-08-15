@@ -1,0 +1,9 @@
+{:deps {:aliases [:cljs]}
+ :builds       {:app {:target     :browser
+                      :output-dir "public/js"
+                      :asset-path "/js"
+                      :modules    {:app {:entries [devonks.chess-ui.core]}}
+                      :devtools   {:after-load devonks.chess-ui.core/mount-root}}}
+
+ :dev-http     {3000 {:root    "public"
+                      :handler user/app}}}
