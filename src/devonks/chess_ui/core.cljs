@@ -65,7 +65,7 @@
                        :square-svg-element nil
                        :original-square-class nil
                        :offset nil
-                       :highlighted-squares []}))
+                       :highlighted-squares {}}))
 
 (defn- get-svg-coordinates
   [e]
@@ -77,79 +77,79 @@
     [svg-x svg-y]))
 
 (defn- unhighlight-squares
-  [highlighted-squares]
-  (doseq [[elem c] highlighted-squares]
-    (.setAttribute elem "class" c)))
+  [state]
+  (doseq [[elem c] (:highlighted-squares state)]
+    (.setAttribute elem "class" c))
+  (assoc state :highlighted-squares {}))
 
-(defn- highlight-square
-  [state e c]
+(defn handle-drag
+  [state e]
+  (let [target (.-target e)
+        [x y :as svg-coords] (get-svg-coordinates e)
+        coords (normalise-coords svg-coords)
+        square-svg-element (.getElementById js/document (coords->square coords))
+        original-square-class (.getAttribute square-svg-element "class")
+        offset-x (- x (js/parseFloat (.getAttributeNS target nil "x")))
+        offset-y (- y (js/parseFloat (.getAttributeNS target nil "y")))
+        offset-vec [offset-x offset-y]]
+    (.preventDefault e)
+    (.setAttribute square-svg-element "class" "original-square")
+    (assoc state
+           :drag-target target
+           :offset offset-vec
+           :square-svg-element square-svg-element
+           :original-square-class original-square-class
+           :highlighted-squares {})))
+
+(defn handle-highlight
+  [state e]
+  (.preventDefault e)
   (let [svg-coords (get-svg-coordinates e)
         coords (normalise-coords svg-coords)
         square-svg-element (.getElementById js/document (coords->square coords))
-        original-square-class (.getAttribute square-svg-element "class")]
-    (.preventDefault e)
-    (.setAttribute square-svg-element "class" c)
-    (update state :highlighted-squares conj [square-svg-element original-square-class])))
+        original-square-class (.getAttribute square-svg-element "class")
+        highlighted-squares (:highlighted-squares state)
+        already-highlighted (contains? highlighted-squares square-svg-element)
+        highlight-class (cond
+                          already-highlighted
+                          (get highlighted-squares square-svg-element)
+
+                          (not (or (.-altKey e)
+                                   (.-ctrlKey e)
+                                   (.-shiftKey e)))
+                          "default-highlight"
+
+                          (and (.-ctrlKey e)
+                               (not (or (.-altKey e)
+                                        (.-shiftKey e))))
+                          "highlight-1"
+
+                          (and (.-altKey e)
+                               (not (or (.-ctrlKey e)
+                                        (.-shiftKey e))))
+                          "highlight-2"
+
+                          (and (.-shiftKey e)
+                               (not (or (.-ctrlKey e)
+                                        (.-altKey e))))
+                          "highlight-3")]
+    (.setAttribute square-svg-element "class" highlight-class)
+    (if already-highlighted
+      (update state :highlighted-squares dissoc square-svg-element)
+      (update state :highlighted-squares assoc square-svg-element original-square-class))))
 
 (defn grab-piece
   [e state]
-  (cond
+  (cond-> state
+    (= (.-button e) 0)
+    (unhighlight-squares)
+
     (and (= (.-button e) 0)
          (.. e -target -attributes -draggable))
-    (let [target (.-target e)
-          [x y :as svg-coords] (get-svg-coordinates e)
-          coords (normalise-coords svg-coords)
-          square-svg-element (.getElementById js/document (coords->square coords))
-          original-square-class (.getAttribute square-svg-element "class")
-          offset-x (- x (js/parseFloat (.getAttributeNS target nil "x")))
-          offset-y (- y (js/parseFloat (.getAttributeNS target nil "y")))
-          offset-vec [offset-x offset-y]]
-      (.preventDefault e)
-      (.setAttribute square-svg-element "class" "original-square")
-      (unhighlight-squares (:highlighted-squares state))
-      (assoc state
-             :drag-target target
-             :offset offset-vec
-             :square-svg-element square-svg-element
-             :original-square-class original-square-class
-             :highlighted-squares []))
-
-    (and (= (.-button e) 0)
-         (not (.. e -target -attributes -draggable)))
-    (do (unhighlight-squares (:highlighted-squares state))
-        (assoc state :highlighted-squares []))
-
-;; FIXME Need to handle the case when the square is already highlighted
-    (and (= (.-button e) 2)
-         (not (or (.-altKey e)
-                  (.-ctrlKey e)
-                  (.-shiftKey e))))
-    (highlight-square state e "default-highlight")
-
-    (and (= (.-button e) 2)
-         (.-ctrlKey e)
-         (not (or (.-altKey e)
-                  (.-shiftKey e))))
-    (highlight-square state e "highlight-1")
-
-    (and (= (.-button e) 2)
-         (.-altKey e)
-         (not (or (.-ctrlKey e)
-                  (.-shiftKey e))))
-    (highlight-square state e "highlight-2")
-
-    (and (= (.-button e) 2)
-         (.-shiftKey e)
-         (not (or (.-ctrlKey e)
-                  (.-altKey e))))
-    (highlight-square state e "highlight-3")
+    (handle-drag e)
 
     (= (.-button e) 2)
-    (do (.preventDefault e)
-        state)
-
-    :else
-    state))
+    (handle-highlight e)))
 
 (defn drag-piece
   [e state]
@@ -199,11 +199,11 @@
 ;; TODO
 ;; DONE - Refactor drag event code to be more functional and use clojure data structures where ever possible
 ;; DONE - Highlight original square when moving piece
-;; Validate that piece is moved to a legal square
-;; Draw dots on legal squares when moving a piece
-;; allow for highlighting squares
+;; DONE - allow for highlighting squares
 ;; allow for drawing arrows
 ;; allow for moving piece by clicking instead of dragging
+;; Validate that piece is moved to a legal square
+;; Draw dots on legal squares when moving a piece
 (defn chess-board [pieces]
   (let [svg [:svg {:id  "chess-board-svg"
                    :width "800"
