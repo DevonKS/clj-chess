@@ -1,5 +1,13 @@
 {
+  "main": "public/main.js",
+  "scripts": {
+    "dev": "clj -M:shadow-cljs watch main app",
+    "build": "clj -M:shadow-cljs release main app",
+    "clean": "rm -rf public/js/* && rm -f public/main.js"
+  },
   "devDependencies": {
+    "electron": "13.1.9",
+    "electron-packager": "^15.3.0",
     "shadow-cljs": "^2.14.3"
   },
   "dependencies": {

@@ -1,5 +1,8 @@
 {:deps {:aliases [:cljs]}
- :builds       {:app {:target     :browser
+ :builds       {:main {:target :node-script
+                       :output-to "public/main.js"
+                       :main devonks.chess-ui.main/main}
+                :app {:target     :browser
                       :output-dir "public/js"
                       :asset-path "/js"
                       :modules    {:app {:entries [devonks.chess-ui.core]}}

@@ -17,3 +17,5 @@ pom.xml.asc
 node_modules
 .cpcache
 .shadow-cljs
+public/main.js
+public/main.js.map
