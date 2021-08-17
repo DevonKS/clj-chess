@@ -61,21 +61,15 @@
            :draggable true
            :href (str "img/" piece ".svg")}])
 
-(def drag-state (atom {:svg-element nil
-                       :drag-target nil
+(def drag-state (atom {:drag-target nil
                        :square-svg-element nil
                        :original-square-class nil
                        :offset nil
                        :highlighted-squares []}))
 
-(defn init-drag-piece
-  [e state]
-  (assoc state :svg-element (.-target e)))
-
 (defn- get-svg-coordinates
-  [e svg]
-  ;; FIXME getScreenCTM is causing the production build to fail. Need to figure out why
-  (let [ctm (.getScreenCTM ^SVGGraphicsElement svg)
+  [e]
+  (let [ctm (.getScreenCTM (.getElementById js/document "chess-board-svg"))
         svg-x (/ (- (.-clientX e) (.-e ctm))
                  (.-a ctm))
         svg-y (/ (- (.-clientY e) (.-f ctm))
@@ -89,7 +83,7 @@
 
 (defn- highlight-square
   [state e c]
-  (let [svg-coords (get-svg-coordinates e (:svg-element state))
+  (let [svg-coords (get-svg-coordinates e)
         coords (normalise-coords svg-coords)
         square-svg-element (.getElementById js/document (coords->square coords))
         original-square-class (.getAttribute square-svg-element "class")]
@@ -103,7 +97,7 @@
     (and (= (.-button e) 0)
          (.. e -target -attributes -draggable))
     (let [target (.-target e)
-          [x y :as svg-coords] (get-svg-coordinates e (:svg-element state))
+          [x y :as svg-coords] (get-svg-coordinates e)
           coords (normalise-coords svg-coords)
           square-svg-element (.getElementById js/document (coords->square coords))
           original-square-class (.getAttribute square-svg-element "class")
@@ -161,7 +155,7 @@
   [e state]
   (if (:drag-target state)
     (let [drag-target (:drag-target state)
-          [coord-x coord-y] (get-svg-coordinates e (:svg-element state))
+          [coord-x coord-y] (get-svg-coordinates e)
           [offset-x offset-y] (:offset state)
           new-x (- coord-x offset-x)
           new-y (- coord-y offset-y)]
@@ -177,7 +171,7 @@
     (and (= (.-button e) 0)
          (:drag-target state))
     (let [drag-target (:drag-target state)
-          svg-coords (get-svg-coordinates e (:svg-element state))
+          svg-coords (get-svg-coordinates e)
           [new-x new-y] (normalise-coords svg-coords)]
       (.preventDefault e)
       (.setAttributeNS drag-target nil "x" new-x)
@@ -211,10 +205,10 @@
 ;; allow for drawing arrows
 ;; allow for moving piece by clicking instead of dragging
 (defn chess-board [pieces]
-  (let [svg [:svg {:width "800"
+  (let [svg [:svg {:id  "chess-board-svg"
+                   :width "800"
                    :height "800"
                    :viewport "0 0 800 800"
-                   :onLoad (partial handle-drag-event! init-drag-piece)
                    :onMouseDown (partial handle-drag-event! grab-piece)
                    :onMouseMove (partial handle-drag-event! drag-piece)
                    :onMouseUp (partial handle-drag-event! drop-piece)
