@@ -74,6 +74,7 @@
 
 (defn- get-svg-coordinates
   [e svg]
+  ;; FIXME getScreenCTM is causing the production build to fail. Need to figure out why
   (let [ctm (.getScreenCTM ^SVGGraphicsElement svg)
         svg-x (/ (- (.-clientX e) (.-e ctm))
                  (.-a ctm))
