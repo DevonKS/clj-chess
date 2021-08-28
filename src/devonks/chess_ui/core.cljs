@@ -5,55 +5,35 @@
 
 ;; -------------------------
 ;; Views
-(defn square->coords [square]
+(defn- square->coords [square]
   (let [x (case (first square)
-            "a" 0
-            "b" 100
-            "c" 200
-            "d" 300
-            "e" 400
-            "f" 500
-            "g" 600
-            "h" 700)
+            "a" 0 "b" 100 "c" 200 "d" 300 "e" 400 "f" 500 "g" 600 "h" 700)
         y (case (second square)
-            "1" 700
-            "2" 600
-            "3" 500
-            "4" 400
-            "5" 300
-            "6" 200
-            "7" 100
-            "8" 0)]
+            "1" 700 "2" 600 "3" 500 "4" 400 "5" 300 "6" 200 "7" 100 "8" 0)]
     [x y]))
 
-(defn coords->square
+(defn- coords->square
   [[x y]]
   (let [file (case x
-               0 "a"
-               100 "b"
-               200 "c"
-               300 "d"
-               400 "e"
-               500 "f"
-               600 "g"
-               700 "h")
+               0 "a" 100 "b" 200 "c" 300 "d" 400 "e" 500 "f" 600 "g" 700 "h")
         rank (case y
-               700 "1"
-               600 "2"
-               500 "3"
-               400 "4"
-               300 "5"
-               200 "6"
-               100 "7"
-               0 "8")]
+               700 "1" 600 "2" 500 "3" 400 "4" 300 "5" 200 "6" 100 "7" 0 "8")]
     (str file rank)))
 
-(defn normalise-coords
+(defn- row+column->square
+  [row column]
+  (let [file (case column
+               0 "a" 1 "b" 2 "c" 3 "d" 4 "e" 5 "f" 6 "g" 7 "h")
+        rank (case row
+               7 "1" 6 "2" 5 "3" 4 "4" 3 "5" 2 "6" 1 "7" 0 "8")]
+    (str file rank)))
+
+(defn- normalise-coords
   [[x y]]
   [(* 100 (Math/floor (/ x 100)))
    (* 100 (Math/floor (/ y 100)))])
 
-(defn piece-comp [piece [x y]]
+(defn- piece-comp [piece [x y]]
   [:image {:x x
            :y y
            :width 100
@@ -61,11 +41,15 @@
            :draggable true
            :href (str "img/" piece ".svg")}])
 
-(def drag-state (atom {:drag-target nil
-                       :square-svg-element nil
-                       :original-square-class nil
-                       :offset nil
-                       :highlighted-squares {}}))
+(defonce game-state (r/atom {:pieces [["r" "a8"] ["n" "b8"] ["b" "c8"] ["q" "d8"] ["k" "e8"] ["b" "f8"] ["n" "g8"] ["r" "h8"]
+                                      ["p" "a7"] ["p" "b7"] ["p" "c7"] ["p" "d7"] ["p" "e7"] ["p" "f7"] ["p" "g7"] ["p" "h7"]
+                                      ["P" "a2"] ["P" "b2"] ["P" "c2"] ["P" "d2"] ["P" "e2"] ["P" "f2"] ["P" "g2"] ["P" "h2"]
+                                      ["R" "a1"] ["N" "b1"] ["B" "c1"] ["Q" "d1"] ["K" "e1"] ["B" "f1"] ["N" "g1"] ["R" "h1"]]
+                             :drag-piece nil
+                             :drag-coords nil
+                             :offset nil
+                             :square-classes {}
+                             :right-mouse-down-square nil}))
 
 (defn- get-svg-coordinates
   [e]
@@ -76,43 +60,45 @@
                  (.-d ctm))]
     [svg-x svg-y]))
 
-(defn- unhighlight-squares
-  [state]
-  (doseq [[elem c] (:highlighted-squares state)]
-    (.setAttribute elem "class" c))
-  (assoc state :highlighted-squares {}))
-
-(defn handle-drag
-  [state e]
-  (let [target (.-target e)
-        [x y :as svg-coords] (get-svg-coordinates e)
-        coords (normalise-coords svg-coords)
-        square-svg-element (.getElementById js/document (coords->square coords))
-        original-square-class (.getAttribute square-svg-element "class")
-        offset-x (- x (js/parseFloat (.getAttributeNS target nil "x")))
-        offset-y (- y (js/parseFloat (.getAttributeNS target nil "y")))
-        offset-vec [offset-x offset-y]]
-    (.preventDefault e)
-    (.setAttribute square-svg-element "class" "original-square")
-    (assoc state
-           :drag-target target
-           :offset offset-vec
-           :square-svg-element square-svg-element
-           :original-square-class original-square-class
-           :highlighted-squares {})))
-
-(defn handle-highlight
-  [state e]
-  (.preventDefault e)
+(defn- get-square
+  [e]
   (let [svg-coords (get-svg-coordinates e)
         coords (normalise-coords svg-coords)
-        square-svg-element (.getElementById js/document (coords->square coords))
-        original-square-class (.getAttribute square-svg-element "class")
-        highlighted-squares (:highlighted-squares state)
-        already-highlighted (contains? highlighted-squares square-svg-element)
+        square (coords->square coords)]
+    square))
+
+(defn- unhighlight-squares
+  [state]
+  (assoc state :square-classes {}))
+
+(defn- handle-drag
+  [state e]
+  (let [target (.-target e)
+        [x y] (get-svg-coordinates e)
+        square (get-square e)
+        new-square-classes (assoc (:square-classes state)
+                                  square "original-square")
+        piece-x (js/parseFloat (.getAttributeNS target nil "x"))
+        piece-y (js/parseFloat (.getAttributeNS target nil "y"))
+        offset-x (- x piece-x)
+        offset-y (- y piece-y)
+        offset-vec [offset-x offset-y]]
+    (.preventDefault e)
+    (assoc state
+           :drag-piece (first (filter #(= square (second %)) (:pieces state)))
+           :drag-coords [piece-x piece-y]
+           :offset offset-vec
+           :square-classes new-square-classes)))
+
+(defn- handle-highlight
+  [state e]
+  (.preventDefault e)
+  (let [square (get-square e)
+        square-classes (:square-classes state)
+        already-highlighted (contains? square-classes square)
         highlight-class (cond
                           already-highlighted
-                          (get highlighted-squares square-svg-element)
+                          ""
 
                           (not (or (.-altKey e)
                                    (.-ctrlKey e)
@@ -133,68 +119,77 @@
                                (not (or (.-ctrlKey e)
                                         (.-altKey e))))
                           "highlight-3")]
-    (.setAttribute square-svg-element "class" highlight-class)
     (if already-highlighted
-      (update state :highlighted-squares dissoc square-svg-element)
-      (update state :highlighted-squares assoc square-svg-element original-square-class))))
+      (update state :square-classes dissoc square)
+      (update state :square-classes assoc square highlight-class))))
 
-(defn grab-piece
+(defn- handle-mouse-down
   [e state]
-  (cond-> state
-    (= (.-button e) 0)
-    (unhighlight-squares)
-
-    (and (= (.-button e) 0)
-         (.. e -target -attributes -draggable))
-    (handle-drag e)
-
-    (= (.-button e) 2)
-    (handle-highlight e)))
-
-(defn drag-piece
-  [e state]
-  (if (:drag-target state)
-    (let [drag-target (:drag-target state)
-          [coord-x coord-y] (get-svg-coordinates e)
-          [offset-x offset-y] (:offset state)
-          new-x (- coord-x offset-x)
-          new-y (- coord-y offset-y)]
-      (.preventDefault e)
-      (.setAttributeNS drag-target nil "x" new-x)
-      (.setAttributeNS drag-target nil "y" new-y)
-      state)
-    state))
-
-(defn drop-piece
-  [e state]
+  (when (= (.-button e) 0)
+    (unhighlight-squares state))
   (cond
     (and (= (.-button e) 0)
-         (:drag-target state))
-    (let [drag-target (:drag-target state)
-          svg-coords (get-svg-coordinates e)
-          [new-x new-y] (normalise-coords svg-coords)]
-      (.preventDefault e)
-      (.setAttributeNS drag-target nil "x" new-x)
-      (.setAttributeNS drag-target nil "y" new-y)
-      (.setAttribute (:square-svg-element state) "class" (:original-square-class state))
-      (assoc state
-             :drag-target nil
-             :square-svg-element nil
-             :original-square-class nil
-             :offset nil))
+         (.. e -target -attributes -draggable))
+    (-> state
+        unhighlight-squares
+        (handle-drag e))
+
+    (= (.-button e) 0)
+    (unhighlight-squares state)
 
     (= (.-button e) 2)
-    (do (.preventDefault e)
-        state)
+    (assoc state :right-mouse-down-square (get-square e))
 
     :else
     state))
 
-(defn handle-drag-event!
+(defn- handle-mouse-move
+  [e state]
+  (if (:drag-piece state)
+    (let [[coord-x coord-y] (get-svg-coordinates e)
+          [offset-x offset-y] (:offset state)
+          new-x (- coord-x offset-x)
+          new-y (- coord-y offset-y)]
+      (.preventDefault e)
+      (assoc state :drag-coords [new-x new-y]))
+    state))
+
+(defn- handle-mouse-up
+  [e state]
+  (cond
+    (and (= (.-button e) 0)
+         (:drag-piece state))
+    (let [pieces (:pieces state)
+          [_ old-square] (:drag-piece state)
+          new-square (get-square e)
+          new-pieces (map (fn [[p s :as r]]
+                            (if (= old-square s)
+                              [p new-square]
+                              r))
+                          pieces)]
+      (.preventDefault e)
+      (assoc state
+             :drag-piece nil
+             :drag-coords nil
+             :pieces new-pieces
+             :square-classes {}
+             :offset nil))
+
+    (= (.-button e) 2)
+    (let [down-square (:right-mouse-down-square state)
+          up-square (get-square e)]
+      (if (= down-square up-square)
+        (handle-highlight state e)
+        state))
+
+    :else
+    state))
+
+(defn- handle-mouse-event!
   [event-fn e]
-  (let [state @drag-state
+  (let [state @game-state
         new-state (event-fn e state)]
-    (reset! drag-state new-state)))
+    (reset! game-state new-state)))
 
 ;; TODO
 ;; DONE - Refactor drag event code to be more functional and use clojure data structures where ever possible
@@ -204,20 +199,27 @@
 ;; allow for moving piece by clicking instead of dragging
 ;; Validate that piece is moved to a legal square
 ;; Draw dots on legal squares when moving a piece
-(defn chess-board [pieces]
-  (let [svg [:svg {:id  "chess-board-svg"
+(defn chess-board []
+  (let [state @game-state
+        square-classes (:square-classes state)
+        pieces (:pieces state)
+        svg [:svg {:id  "chess-board-svg"
                    :width "800"
                    :height "800"
                    :viewport "0 0 800 800"
-                   :onMouseDown (partial handle-drag-event! grab-piece)
-                   :onMouseMove (partial handle-drag-event! drag-piece)
-                   :onMouseUp (partial handle-drag-event! drop-piece)
+                   :onMouseDown (partial handle-mouse-event! handle-mouse-down)
+                   :onMouseMove (partial handle-mouse-event! handle-mouse-move)
+                   :onMouseUp (partial handle-mouse-event! handle-mouse-up)
                    :onContextMenu #(.preventDefault %)}]
         board (map
                (fn [i]
                  (let [row (Math/floor (/ i 8))
                        column (rem i 8)
+                       square (row+column->square row column)
                        class (cond
+                               (contains? square-classes square)
+                               (get square-classes square)
+
                                (or (and (zero? (mod column 2))
                                         (zero? (mod row 2)))
                                    (and (not (zero? (mod column 2)))
@@ -276,8 +278,9 @@
                           (range 1 9))
         pieces (mapv
                 (fn [[piece square]]
-                  (let [coords (square->coords square)]
-                    (piece-comp piece coords)))
+                  (if (= square (second (:drag-piece state)))
+                    (piece-comp piece (:drag-coords state))
+                    (piece-comp piece (square->coords square))))
                 pieces)]
     (-> svg
         (into board)
@@ -287,10 +290,7 @@
 
 (defn home-page []
   [:div {:class "main-div"}
-   [chess-board [["r" "a8"] ["n" "b8"] ["b" "c8"] ["q" "d8"] ["k" "e8"] ["b" "f8"] ["n" "g8"] ["r" "h8"]
-                 ["p" "a7"] ["p" "b7"] ["p" "c7"] ["p" "d7"] ["p" "e7"] ["p" "f7"] ["p" "g7"] ["p" "h7"]
-                 ["P" "a2"] ["P" "b2"] ["P" "c2"] ["P" "d2"] ["P" "e2"] ["P" "f2"] ["P" "g2"] ["P" "h2"]
-                 ["R" "a1"] ["N" "b1"] ["B" "c1"] ["Q" "d1"] ["K" "e1"] ["B" "f1"] ["N" "g1"] ["R" "h1"]]]])
+   [chess-board]])
 
 ;; -------------------------
 ;; Initialize app
