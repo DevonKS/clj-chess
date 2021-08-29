@@ -1,7 +1,8 @@
 (ns devonks.chess-ui.core
   (:require
    [reagent.core :as r]
-   [reagent.dom :as d]))
+   [reagent.dom :as d]
+   [clojure.string :as string]))
 
 ;; -------------------------
 ;; Views
@@ -47,6 +48,7 @@
                                       ["R" "a1"] ["N" "b1"] ["B" "c1"] ["Q" "d1"] ["K" "e1"] ["B" "f1"] ["N" "g1"] ["R" "h1"]]
                              :drag-piece nil
                              :drag-coords nil
+                             :arrows []
                              :offset nil
                              :square-classes {}
                              :right-mouse-down-square nil}))
@@ -70,6 +72,10 @@
 (defn- unhighlight-squares
   [state]
   (assoc state :square-classes {}))
+
+(defn- remove-arrows
+  [state]
+  (assoc state :arrows []))
 
 (defn- handle-drag
   [state e]
@@ -123,19 +129,24 @@
       (update state :square-classes dissoc square)
       (update state :square-classes assoc square highlight-class))))
 
+(defn- handle-arrow
+  [state source-square dest-square]
+  (update state :arrows conj [source-square dest-square]))
+
 (defn- handle-mouse-down
   [e state]
-  (when (= (.-button e) 0)
-    (unhighlight-squares state))
   (cond
     (and (= (.-button e) 0)
          (.. e -target -attributes -draggable))
     (-> state
         unhighlight-squares
+        remove-arrows
         (handle-drag e))
 
     (= (.-button e) 0)
-    (unhighlight-squares state)
+    (-> state
+        unhighlight-squares
+        remove-arrows)
 
     (= (.-button e) 2)
     (assoc state :right-mouse-down-square (get-square e))
@@ -180,7 +191,7 @@
           up-square (get-square e)]
       (if (= down-square up-square)
         (handle-highlight state e)
-        state))
+        (handle-arrow state down-square up-square)))
 
     :else
     state))
@@ -281,12 +292,47 @@
                   (if (= square (second (:drag-piece state)))
                     (piece-comp piece (:drag-coords state))
                     (piece-comp piece (square->coords square))))
-                pieces)]
+                pieces)
+        arrow-fn (fn [[source-square dest-square]]
+                   (let [id (str "arrow-" source-square dest-square)
+                         x (case (first source-square)
+                             "a" 50 "b" 150 "c" 250 "d" 350 "e" 450 "f" 550 "g" 650 "h" 750)
+                         y (case (second source-square)
+                             "8" 50 "7" 150 "6" 250 "5" 350 "4" 450 "3" 550 "2" 650 "1" 750)
+                         dest-x (case (first dest-square)
+                                  "a" 50 "b" 150 "c" 250 "d" 350 "e" 450 "f" 550 "g" 650 "h" 750)
+                         dest-y (case (second dest-square)
+                                  "8" 50 "7" 150 "6" 250 "5" 350 "4" 450 "3" 550 "2" 650 "1" 750)
+                         half-stem-width 13.75
+                         square-diff (/ (Math/sqrt (+ (Math/pow (- dest-x x) 2)
+                                                      (Math/pow (- dest-y y) 2)))
+                                        100)
+                         stem-length (+ 55 (* 100 (dec square-diff)))
+                         arrow-side-width 18.75
+                         arrow-head-length 45
+                         points [[(- x half-stem-width) y]
+                                 [(- x half-stem-width) (+ y stem-length)]
+                                 [(- x half-stem-width arrow-side-width) (+ y stem-length)]
+                                 [x (+ y stem-length arrow-head-length)]
+                                 [(+ x half-stem-width arrow-side-width) (+ y stem-length)]
+                                 [(+ x half-stem-width) (+ y stem-length)]
+                                 [(+ x half-stem-width) y]]
+                         points-str (string/join "," (mapv (partial string/join " ") points))
+                         rotate-angle (- (/ (* (Math/atan2 (- x dest-x) (- y dest-y)) 180)
+                                            Math/PI)
+                                         180)
+                         rotate-angle (* -1 rotate-angle)]
+                     [:polygon {:id id
+                                :class "arrow"
+                                :points points-str
+                                :transform (str "rotate(" rotate-angle " " x " " y ")")}]))
+        arrows (mapv arrow-fn (:arrows state))]
     (-> svg
         (into board)
         (into rank-coordinates)
         (into file-coordinates)
-        (into pieces))))
+        (into pieces)
+        (into arrows))))
 
 (defn home-page []
   [:div {:class "main-div"}

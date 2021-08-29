@@ -45,3 +45,7 @@ rect.highlight-2 {
 rect.highlight-3 {
 	fill: #d08770;
 }
+
+polygon.arrow {
+	fill: #ebcb8b;
+}
