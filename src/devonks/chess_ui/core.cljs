@@ -48,7 +48,7 @@
                                       ["R" "a1"] ["N" "b1"] ["B" "c1"] ["Q" "d1"] ["K" "e1"] ["B" "f1"] ["N" "g1"] ["R" "h1"]]
                              :drag-piece nil
                              :drag-coords nil
-                             :arrows []
+                             :arrows #{}
                              :offset nil
                              :square-classes {}
                              :right-mouse-down-square nil}))
@@ -75,7 +75,7 @@
 
 (defn- remove-arrows
   [state]
-  (assoc state :arrows []))
+  (assoc state :arrows #{}))
 
 (defn- handle-drag
   [state e]
@@ -131,7 +131,10 @@
 
 (defn- handle-arrow
   [state source-square dest-square]
-  (update state :arrows conj [source-square dest-square]))
+  (let [a [source-square dest-square]]
+    (if (contains? (:arrows state) a)
+      (update state :arrows disj a)
+      (update state :arrows conj a))))
 
 (defn- handle-mouse-down
   [e state]
