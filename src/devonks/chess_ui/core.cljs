@@ -205,11 +205,131 @@
         new-state (event-fn e state)]
     (reset! game-state new-state)))
 
+(defn- straight-arrow
+  [id [x y] [dest-x dest-y]]
+  (let [half-stem-width 13.75
+        square-diff (/ (Math/sqrt (+ (Math/pow (- dest-x x) 2)
+                                     (Math/pow (- dest-y y) 2)))
+                       100)
+        stem-length (+ 55 (* 100 (dec square-diff)))
+        arrow-side-width 18.75
+        arrow-head-length 45
+        points [[(- x half-stem-width) y]
+                [(- x half-stem-width) (+ y stem-length)]
+                [(- x half-stem-width arrow-side-width) (+ y stem-length)]
+                [x (+ y stem-length arrow-head-length)]
+                [(+ x half-stem-width arrow-side-width) (+ y stem-length)]
+                [(+ x half-stem-width) (+ y stem-length)]
+                [(+ x half-stem-width) y]]
+        points-str (string/join "," (mapv (partial string/join " ") points))
+        rotate-angle (- (/ (* (Math/atan2 (- x dest-x) (- y dest-y)) 180)
+                           Math/PI)
+                        180)
+        rotate-angle (* -1 rotate-angle)]
+    [:polygon {:id id
+               :class "arrow"
+               :points points-str
+               :transform (str "rotate(" rotate-angle " " x " " y ")")}]))
+
+(defn- knight-arrow
+  [id [x y] [dest-x dest-y]]
+  (let [half-stem-width 13.75
+        arrow-side-width 18.75
+        arrow-head-length 45
+        [rotate-angle left-arrow?] (cond
+                                     (and (= x (- dest-x 100))
+                                          (= y (- dest-y 200)))
+                                     [0 false]
+
+                                     (and (= x (- dest-x 200))
+                                          (= y (- dest-y 100)))
+                                     [270 true]
+
+                                     (and (= x (+ dest-x 100))
+                                          (= y (- dest-y 200)))
+                                     [0 true]
+
+                                     (and (= x (+ dest-x 200))
+                                          (= y (- dest-y 100)))
+                                     [90 false]
+
+                                     (and (= x (- dest-x 100))
+                                          (= y (+ dest-y 200)))
+                                     [180 true]
+
+                                     (and (= x (- dest-x 200))
+                                          (= y (+ dest-y 100)))
+                                     [270 false]
+
+                                     (and (= x (+ dest-x 200))
+                                          (= y (+ dest-y 100)))
+                                     [90 true]
+
+                                     (and (= x (+ dest-x 100))
+                                          (= y (+ dest-y 200)))
+                                     [180 false])
+        points (if left-arrow?
+                 [[(+ x half-stem-width) y]
+                  [(+ x half-stem-width) (+ y 200 half-stem-width)]
+                  [(+ (- x 100) arrow-head-length) (+ y 200 half-stem-width)]
+                  [(+ (- x 100) arrow-head-length) (+ y 200 half-stem-width arrow-side-width)]
+                  [(- x 100) (+ y 200)]
+                  [(+ (- x 100) arrow-head-length) (- (+ y 200) half-stem-width arrow-side-width)]
+                  [(+ (- x 100) arrow-head-length) (- (+ y 200) half-stem-width)]
+                  [(- x half-stem-width) (- (+ y 200) half-stem-width)]
+                  [(- x half-stem-width) y]]
+                 [[(- x half-stem-width) y]
+                  [(- x half-stem-width) (+ y 200 half-stem-width)]
+                  [(- (+ x 100) arrow-head-length) (+ y 200 half-stem-width)]
+                  [(- (+ x 100) arrow-head-length) (+ y 200 half-stem-width arrow-side-width)]
+                  [(+ x 100) (+ y 200)]
+                  [(- (+ x 100) arrow-head-length) (- (+ y 200) half-stem-width arrow-side-width)]
+                  [(- (+ x 100) arrow-head-length) (- (+ y 200) half-stem-width)]
+                  [(+ x half-stem-width) (- (+ y 200) half-stem-width)]
+                  [(+ x half-stem-width) y]])
+
+        points-str (string/join "," (mapv (partial string/join " ") points))]
+    [:polygon {:id id
+               :class "arrow"
+               :points points-str
+               :transform (str "rotate(" rotate-angle " " x " " y ")")}]))
+
+(defn arrow
+  [[source-square dest-square]]
+  (let [id (str "arrow-" source-square dest-square)
+        x (case (first source-square)
+            "a" 50 "b" 150 "c" 250 "d" 350 "e" 450 "f" 550 "g" 650 "h" 750)
+        y (case (second source-square)
+            "8" 50 "7" 150 "6" 250 "5" 350 "4" 450 "3" 550 "2" 650 "1" 750)
+        dest-x (case (first dest-square)
+                 "a" 50 "b" 150 "c" 250 "d" 350 "e" 450 "f" 550 "g" 650 "h" 750)
+        dest-y (case (second dest-square)
+                 "8" 50 "7" 150 "6" 250 "5" 350 "4" 450 "3" 550 "2" 650 "1" 750)
+        is-knight-move? (or (and (= x (- dest-x 100))
+                                 (= y (- dest-y 200)))
+                            (and (= x (- dest-x 200))
+                                 (= y (- dest-y 100)))
+                            (and (= x (+ dest-x 100))
+                                 (= y (- dest-y 200)))
+                            (and (= x (+ dest-x 200))
+                                 (= y (- dest-y 100)))
+                            (and (= x (- dest-x 100))
+                                 (= y (+ dest-y 200)))
+                            (and (= x (- dest-x 200))
+                                 (= y (+ dest-y 100)))
+                            (and (= x (+ dest-x 200))
+                                 (= y (+ dest-y 100)))
+                            (and (= x (+ dest-x 100))
+                                 (= y (+ dest-y 200))))]
+    (if is-knight-move?
+      (knight-arrow id [x y] [dest-x dest-y])
+      (straight-arrow id [x y] [dest-x dest-y]))))
+
 ;; TODO
 ;; DONE - Refactor drag event code to be more functional and use clojure data structures where ever possible
 ;; DONE - Highlight original square when moving piece
 ;; DONE - allow for highlighting squares
-;; allow for drawing arrows
+;; DONE - allow for drawing arrows
 ;; allow for moving piece by clicking instead of dragging
 ;; Validate that piece is moved to a legal square
 ;; Draw dots on legal squares when moving a piece
@@ -296,40 +416,7 @@
                     (piece-comp piece (:drag-coords state))
                     (piece-comp piece (square->coords square))))
                 pieces)
-        arrow-fn (fn [[source-square dest-square]]
-                   (let [id (str "arrow-" source-square dest-square)
-                         x (case (first source-square)
-                             "a" 50 "b" 150 "c" 250 "d" 350 "e" 450 "f" 550 "g" 650 "h" 750)
-                         y (case (second source-square)
-                             "8" 50 "7" 150 "6" 250 "5" 350 "4" 450 "3" 550 "2" 650 "1" 750)
-                         dest-x (case (first dest-square)
-                                  "a" 50 "b" 150 "c" 250 "d" 350 "e" 450 "f" 550 "g" 650 "h" 750)
-                         dest-y (case (second dest-square)
-                                  "8" 50 "7" 150 "6" 250 "5" 350 "4" 450 "3" 550 "2" 650 "1" 750)
-                         half-stem-width 13.75
-                         square-diff (/ (Math/sqrt (+ (Math/pow (- dest-x x) 2)
-                                                      (Math/pow (- dest-y y) 2)))
-                                        100)
-                         stem-length (+ 55 (* 100 (dec square-diff)))
-                         arrow-side-width 18.75
-                         arrow-head-length 45
-                         points [[(- x half-stem-width) y]
-                                 [(- x half-stem-width) (+ y stem-length)]
-                                 [(- x half-stem-width arrow-side-width) (+ y stem-length)]
-                                 [x (+ y stem-length arrow-head-length)]
-                                 [(+ x half-stem-width arrow-side-width) (+ y stem-length)]
-                                 [(+ x half-stem-width) (+ y stem-length)]
-                                 [(+ x half-stem-width) y]]
-                         points-str (string/join "," (mapv (partial string/join " ") points))
-                         rotate-angle (- (/ (* (Math/atan2 (- x dest-x) (- y dest-y)) 180)
-                                            Math/PI)
-                                         180)
-                         rotate-angle (* -1 rotate-angle)]
-                     [:polygon {:id id
-                                :class "arrow"
-                                :points points-str
-                                :transform (str "rotate(" rotate-angle " " x " " y ")")}]))
-        arrows (mapv arrow-fn (:arrows state))]
+        arrows (mapv arrow (:arrows state))]
     (-> svg
         (into board)
         (into rank-coordinates)
