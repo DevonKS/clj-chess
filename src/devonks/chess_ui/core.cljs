@@ -46,6 +46,38 @@
                                       ["p" "a7"] ["p" "b7"] ["p" "c7"] ["p" "d7"] ["p" "e7"] ["p" "f7"] ["p" "g7"] ["p" "h7"]
                                       ["P" "a2"] ["P" "b2"] ["P" "c2"] ["P" "d2"] ["P" "e2"] ["P" "f2"] ["P" "g2"] ["P" "h2"]
                                       ["R" "a1"] ["N" "b1"] ["B" "c1"] ["Q" "d1"] ["K" "e1"] ["B" "f1"] ["N" "g1"] ["R" "h1"]]
+                             :valid-moves {["r" "a8"] #{}
+                                           ["n" "b8"] #{"a6" "c6"}
+                                           ["b" "c8"] #{}
+                                           ["q" "d8"] #{}
+                                           ["k" "e8"] #{}
+                                           ["b" "f8"] #{}
+                                           ["n" "g8"] #{"f6" "h6"}
+                                           ["r" "h8"] #{}
+                                           ["p" "a7"] #{"a6" "a5"}
+                                           ["p" "b7"] #{"b6" "b5"}
+                                           ["p" "c7"] #{"c6" "c5"}
+                                           ["p" "d7"] #{"d6" "d5"}
+                                           ["p" "e7"] #{"e6" "e5"}
+                                           ["p" "f7"] #{"f6" "f5"}
+                                           ["p" "g7"] #{"g6" "g5"}
+                                           ["p" "h7"] #{"h6" "h5"}
+                                           ["P" "a2"] #{"a3" "a4"}
+                                           ["P" "b2"] #{"b3" "b4"}
+                                           ["P" "c2"] #{"c3" "c4"}
+                                           ["P" "d2"] #{"d3" "d4"}
+                                           ["P" "e2"] #{"e3" "e4"}
+                                           ["P" "f2"] #{"f3" "f4"}
+                                           ["P" "g2"] #{"g3" "g4"}
+                                           ["P" "h2"] #{"h3" "h4"}
+                                           ["R" "a1"] #{}
+                                           ["N" "b1"] #{"a3" "c3"}
+                                           ["B" "c1"] #{}
+                                           ["Q" "d1"] #{}
+                                           ["K" "e1"] #{}
+                                           ["B" "f1"] #{}
+                                           ["N" "g1"] #{"f3" "h3"}
+                                           ["R" "h1"] #{}}
                              :drag-piece nil
                              :drag-coords nil
                              :selected-piece nil
@@ -102,13 +134,19 @@
   [state e]
   (if (:selected-piece state)
     (let [pieces (:pieces state)
-          [_ old-square] (:selected-piece state)
+          [_ old-square :as p] (:selected-piece state)
           new-square (get-square e)
-          new-pieces (map (fn [[p s :as r]]
-                            (if (= old-square s)
-                              [p new-square]
-                              r))
-                          pieces)]
+          valid-move? (contains? (get-in state [:valid-moves p]) new-square)
+          _ (js/console.log (clj->js (keys (:valid-moves state))))
+          _ (js/console.log (clj->js p))
+          _ (js/console.log (clj->js (get-in state [:valid-moves p])))
+          new-pieces (if valid-move?
+                       (map (fn [[p s :as r]]
+                              (if (= old-square s)
+                                [p new-square]
+                                r))
+                            pieces)
+                       pieces)]
       (.preventDefault e)
       (assoc state
              :drag-piece nil
@@ -198,8 +236,7 @@
     (and (= (.-button e) 0)
          (:drag-piece state))
     (let [pieces (:pieces state)
-          drag-piece (:drag-piece state)
-          [_ old-square] drag-piece
+          [_ old-square :as drag-piece] (:drag-piece state)
           new-square (get-square e)]
       (if (= old-square new-square)
         (assoc state
@@ -208,11 +245,14 @@
                :selected-piece drag-piece
                :square-classes {old-square "original-square"}
                :offset nil)
-        (let [new-pieces (map (fn [[p s :as r]]
-                                (if (= old-square s)
-                                  [p new-square]
-                                  r))
-                              pieces)]
+        (let [valid-move? (contains? (get-in state [:valid-moves drag-piece]) new-square)
+              new-pieces (if valid-move?
+                           (map (fn [[p s :as r]]
+                                  (if (= old-square s)
+                                    [p new-square]
+                                    r))
+                                pieces)
+                           pieces)]
           (.preventDefault e)
           (assoc state
                  :drag-piece nil
@@ -363,7 +403,7 @@
 ;; DONE - allow for highlighting squares
 ;; DONE - allow for drawing arrows
 ;; DONE - allow for moving piece by clicking instead of dragging
-;; Validate that piece is moved to a legal square
+;; DONE - Validate that piece is moved to a legal square
 ;; Draw dots on legal squares when moving a piece
 ;; Highlight last move
 ;; Highlight the border of the sqaure a piece is being draged over
