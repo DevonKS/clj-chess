@@ -47,5 +47,9 @@ rect.highlight-3 {
 }
 
 polygon.arrow {
-	fill: #ebcb8b;
+	fill: #ebcb8bcd;
+}
+
+circle.move-hint {
+    fill: #4c566a80;
 }

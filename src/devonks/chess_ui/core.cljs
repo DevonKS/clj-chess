@@ -46,6 +46,7 @@
                                       ["p" "a7"] ["p" "b7"] ["p" "c7"] ["p" "d7"] ["p" "e7"] ["p" "f7"] ["p" "g7"] ["p" "h7"]
                                       ["P" "a2"] ["P" "b2"] ["P" "c2"] ["P" "d2"] ["P" "e2"] ["P" "f2"] ["P" "g2"] ["P" "h2"]
                                       ["R" "a1"] ["N" "b1"] ["B" "c1"] ["Q" "d1"] ["K" "e1"] ["B" "f1"] ["N" "g1"] ["R" "h1"]]
+                             :move-hints #{}
                              :valid-moves {["r" "a8"] #{}
                                            ["n" "b8"] #{"a6" "c6"}
                                            ["b" "c8"] #{}
@@ -109,6 +110,17 @@
 (defn- remove-arrows
   [state]
   (assoc state :arrows #{}))
+
+(defn- remove-move-hints
+  [state]
+  (assoc state :move-hints #{}))
+
+(defn- draw-move-hints
+  [state e]
+  (let [square (get-square e)
+        piece (first (filter #(= square (second %)) (:pieces state)))
+        valid-moves (get-in state [:valid-moves piece])]
+    (assoc state :move-hints valid-moves)))
 
 (defn- handle-drag
   [state e]
@@ -205,12 +217,16 @@
     (-> state
         unhighlight-squares
         remove-arrows
+        remove-move-hints
+        (draw-move-hints e)
         (handle-drag e))
 
     (= (.-button e) 0)
     (-> state
         unhighlight-squares
         remove-arrows
+        remove-move-hints
+        (draw-move-hints e)
         (handle-move e))
 
     (= (.-button e) 2)
@@ -404,7 +420,7 @@
 ;; DONE - allow for drawing arrows
 ;; DONE - allow for moving piece by clicking instead of dragging
 ;; DONE - Validate that piece is moved to a legal square
-;; Draw dots on legal squares when moving a piece
+;; DONE - Draw dots on legal squares when moving a piece
 ;; Highlight last move
 ;; Highlight the border of the sqaure a piece is being draged over
 (defn chess-board []
@@ -490,13 +506,22 @@
                     (piece-comp piece (:drag-coords state))
                     (piece-comp piece (square->coords square))))
                 pieces)
-        arrows (mapv arrow (:arrows state))]
+        arrows (mapv arrow (:arrows state))
+        move-hints (mapv
+                    (fn [square]
+                      (let [[x y] (square->coords square)
+                            x (+ x 50)
+                            y (+ y 50)]
+                        [:circle {:cx x :cy y :r 15 :class "move-hint"}]))
+
+                    (:move-hints state))]
     (-> svg
         (into board)
         (into rank-coordinates)
         (into file-coordinates)
         (into pieces)
-        (into arrows))))
+        (into arrows)
+        (into move-hints))))
 
 (defn home-page []
   [:div {:class "main-div"}
