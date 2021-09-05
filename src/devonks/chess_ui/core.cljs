@@ -48,6 +48,7 @@
                                       ["R" "a1"] ["N" "b1"] ["B" "c1"] ["Q" "d1"] ["K" "e1"] ["B" "f1"] ["N" "g1"] ["R" "h1"]]
                              :drag-piece nil
                              :drag-coords nil
+                             :selected-piece nil
                              :arrows #{}
                              :offset nil
                              :square-classes {}
@@ -93,8 +94,30 @@
     (assoc state
            :drag-piece (first (filter #(= square (second %)) (:pieces state)))
            :drag-coords [piece-x piece-y]
+           :selected-piece nil
            :offset offset-vec
            :square-classes new-square-classes)))
+
+(defn- handle-move
+  [state e]
+  (if (:selected-piece state)
+    (let [pieces (:pieces state)
+          [_ old-square] (:selected-piece state)
+          new-square (get-square e)
+          new-pieces (map (fn [[p s :as r]]
+                            (if (= old-square s)
+                              [p new-square]
+                              r))
+                          pieces)]
+      (.preventDefault e)
+      (assoc state
+             :drag-piece nil
+             :drag-coords nil
+             :selected-piece nil
+             :pieces new-pieces
+             :square-classes {}
+             :offset nil))
+    state))
 
 (defn- handle-highlight
   [state e]
@@ -149,7 +172,8 @@
     (= (.-button e) 0)
     (-> state
         unhighlight-squares
-        remove-arrows)
+        remove-arrows
+        (handle-move e))
 
     (= (.-button e) 2)
     (assoc state :right-mouse-down-square (get-square e))
@@ -174,20 +198,28 @@
     (and (= (.-button e) 0)
          (:drag-piece state))
     (let [pieces (:pieces state)
-          [_ old-square] (:drag-piece state)
-          new-square (get-square e)
-          new-pieces (map (fn [[p s :as r]]
-                            (if (= old-square s)
-                              [p new-square]
-                              r))
-                          pieces)]
-      (.preventDefault e)
-      (assoc state
-             :drag-piece nil
-             :drag-coords nil
-             :pieces new-pieces
-             :square-classes {}
-             :offset nil))
+          drag-piece (:drag-piece state)
+          [_ old-square] drag-piece
+          new-square (get-square e)]
+      (if (= old-square new-square)
+        (assoc state
+               :drag-piece nil
+               :drag-coords nil
+               :selected-piece drag-piece
+               :square-classes {old-square "original-square"}
+               :offset nil)
+        (let [new-pieces (map (fn [[p s :as r]]
+                                (if (= old-square s)
+                                  [p new-square]
+                                  r))
+                              pieces)]
+          (.preventDefault e)
+          (assoc state
+                 :drag-piece nil
+                 :drag-coords nil
+                 :pieces new-pieces
+                 :square-classes {}
+                 :offset nil))))
 
     (= (.-button e) 2)
     (let [down-square (:right-mouse-down-square state)
@@ -330,9 +362,11 @@
 ;; DONE - Highlight original square when moving piece
 ;; DONE - allow for highlighting squares
 ;; DONE - allow for drawing arrows
-;; allow for moving piece by clicking instead of dragging
+;; DONE - allow for moving piece by clicking instead of dragging
 ;; Validate that piece is moved to a legal square
 ;; Draw dots on legal squares when moving a piece
+;; Highlight last move
+;; Highlight the border of the sqaure a piece is being draged over
 (defn chess-board []
   (let [state @game-state
         square-classes (:square-classes state)
