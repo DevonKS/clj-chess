@@ -34,14 +34,6 @@
   [(* 100 (Math/floor (/ x 100)))
    (* 100 (Math/floor (/ y 100)))])
 
-(defn- piece-comp [piece [x y]]
-  [:image {:x x
-           :y y
-           :width 100
-           :height 100
-           :draggable true
-           :href (str "img/" piece ".svg")}])
-
 (defonce game-state (r/atom {:pieces [["r" "a8"] ["n" "b8"] ["b" "c8"] ["q" "d8"] ["k" "e8"] ["b" "f8"] ["n" "g8"] ["r" "h8"]
                                       ["p" "a7"] ["p" "b7"] ["p" "c7"] ["p" "d7"] ["p" "e7"] ["p" "f7"] ["p" "g7"] ["p" "h7"]
                                       ["P" "a2"] ["P" "b2"] ["P" "c2"] ["P" "d2"] ["P" "e2"] ["P" "f2"] ["P" "g2"] ["P" "h2"]
@@ -85,7 +77,31 @@
                              :arrows #{}
                              :offset nil
                              :square-classes {}
-                             :right-mouse-down-square nil}))
+                             :right-mouse-down-square nil
+                             :settings {:piece-theme :cburnett}}))
+
+(def piece->piece-filename
+  {"r" "bR" "n" "bN" "b" "bB" "q" "bQ" "k" "bK" "p" "bP"
+   "R" "wR" "N" "wN" "B" "wB" "Q" "wQ" "K" "wK" "P" "wP"})
+
+(def theme->theme-filetype
+  {:cburnett "svg"})
+
+(defn- get-piece-href
+  [piece]
+  (let [theme (get-in @game-state [:settings :piece-theme])
+        theme-name (name theme)
+        piece-filename (get piece->piece-filename piece)
+        theme-filetype (get theme->theme-filetype theme)]
+    (str "img/pieces/" theme-name "/" piece-filename "." theme-filetype)))
+
+(defn- piece-comp [piece [x y]]
+  [:image {:x x
+           :y y
+           :width 100
+           :height 100
+           :draggable true
+           :href (get-piece-href piece)}])
 
 (defn- get-svg-coordinates
   [e]
