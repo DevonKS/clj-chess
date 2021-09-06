@@ -1,3 +1,17 @@
+# Clojure Chess
+
+## Introduction
+A simple chess ui for playing chess written using reagent and electron. By simple I mean it contains no chess engine, all the engine work must be performed on the server. Clojure Chess is writtent to work with [cl-chess](https://github.com/DevonKS/cl-chess).
+
+<img src="https://raw.githubusercontent.com/DevonKS/clj-chess/main/docs/img/board.png" alt="Chess Board" title="Screenshot of the Clojure Chess board. Highlighting features."/>
+
+## Features
+ - Highlight squares in 4 different colors.
+ - Draw Arrows on the board.
+ - Valid move hints.
+ - Drag and Drop as well as click to move.
+
+## Development
 
 ### Development mode
 ```
